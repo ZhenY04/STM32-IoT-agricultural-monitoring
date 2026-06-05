@@ -1,0 +1,39 @@
+# VS Code / IDE configs
+.vscode/
+.settings/
+
+# EIDE
+.eide/
+.cmsis/
+.pack/
+.eide/log/
+.eide.usr.ctx.json
+*.ept
+*.eide-template
+
+# Build output (EIDE)
+/build
+/bin
+/obj
+/out
+
+# Keil build output
+/Objects/
+/Listings/
+/DebugConfig/
+*.axf
+*.hex
+*.o
+*.d
+*.dep
+
+# backup / temp
+*.uvoptx.bak
+*.tmp
+
+# configuration files (passwords)
+Config/MQTT_Config.h
+Config/WIFI_Config.h
+
+Project.uvguix.yangz
+RTE_Components.h

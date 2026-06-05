@@ -1,0 +1,157 @@
+#include "stm32f10x.h"
+#include "Delay.h"
+
+#include "Key.h"
+#include "OLED.h"
+
+#include "Soil_Moisture.h"
+#include "DHT11.h"
+#include "MyI2C.h"
+#include "BH1750.h"
+
+#include "Serial.h"
+#include "MQTT.h"
+
+#include "Relay.h"
+
+#define LOOP_PERIOD_MS 50    //屏幕刷新周期
+#define UPLOAD_PERIOD_MS 200    //四分之一MQTT上传云平台周期
+
+typedef enum
+{
+    MODE_SOIL = 0,
+    MODE_BH1750,
+    MODE_DHT11
+} SystemMode;
+
+SystemMode CurrentMode = MODE_SOIL;
+
+static uint32_t dht11_timer = 0;
+static uint32_t upload_timer = 0;
+
+static DHT11_Data_TypeDef dht11_data;
+
+uint8_t soil_threshold = 30;    //默认阈值
+static uint8_t alarm_flag = 0;    //土壤湿度告警状态变量
+
+int main(void)
+{
+    Key_Init();
+    OLED_Init();
+
+    Soil_Moisture_Init();
+    MyI2C_Init();
+    BH1750_Init();
+    DHT11_Init();
+
+    Serial_Init();
+		MQTT_Init();
+	
+	  Relay_Init();
+
+    OLED_Clear();
+
+    while(1)
+    {
+        for(int i = 0; i < LOOP_PERIOD_MS / 10; i++)
+        {
+					  //按键切换模式，刷新节奏控制
+            if(Key_Scan(KEY_MODE_PIN))
+            {
+                CurrentMode++;
+                if(CurrentMode > MODE_DHT11)
+                    CurrentMode = MODE_SOIL;
+
+                OLED_Clear();
+            }
+						
+            //按键设置阈值
+						if(Key_Scan(KEY_PLUS_PIN))
+						{
+								if(soil_threshold < 100)
+										soil_threshold += 10;
+						}
+
+						if(Key_Scan(KEY_MINUS_PIN))
+						{
+								if(soil_threshold > 0)
+										soil_threshold -= 10;
+						}
+						
+            Delay_ms(10);
+        }
+
+        //读取传感器
+        uint8_t soil = Soil_Moisture_Percent();
+        uint16_t light = BH1750_ReadLux();
+
+        dht11_timer += LOOP_PERIOD_MS;
+        if(dht11_timer >= 1000)
+        {
+            if(DHT11_Read_Data(&dht11_data) == 0)
+            {
+                dht11_timer = 0;
+            }
+        }
+				
+				//控制MOS开断（或继电器高电平触发模式下的开断）
+				if(soil < soil_threshold)
+				{
+					alarm_flag = 1;
+					GPIO_SetBits(RELAY_PORT, RELAY_PIN);    //MOS连通（高电平触发）
+				}
+				else
+				{
+					alarm_flag = 0;
+					GPIO_ResetBits(RELAY_PORT, RELAY_PIN);    //MOS断开
+				}
+
+        //OLED根据模式显示
+        switch(CurrentMode)
+        {
+            case MODE_SOIL:
+                OLED_ShowString(1,1,"Soil:");
+                OLED_ShowNum(2,1,soil,3);
+                OLED_ShowChar(2,4,'%');
+						
+								OLED_ShowString(3,1,"Threshold:");
+								OLED_ShowNum(4,1,soil_threshold,3);
+								OLED_ShowChar(4,4,'%');
+                break;
+
+            case MODE_BH1750:
+                OLED_ShowString(1,1,"Light:");
+                OLED_ShowNum(2,1,light,5);
+                OLED_ShowString(2,7,"lux");
+                break;
+
+            case MODE_DHT11:
+                OLED_ShowString(1,1,"Temp:");
+                OLED_ShowNum(1,6,dht11_data.temp_int,2);
+                OLED_ShowChar(1,8,'C');
+
+                OLED_ShowString(2,1,"Humi:");
+                OLED_ShowNum(2,6,dht11_data.humi_int,2);
+                OLED_ShowChar(2,8,'%');
+                break;
+        }
+				
+				//MQTT上传
+				upload_timer += LOOP_PERIOD_MS;
+				
+        //理论上每UPLOAD_PERIOD_MS上传一次，但实际一个循环约为250ms而非50ms
+				//因此，实际上每5*UPLOAD_PERIOD_MS上传一次
+				if(upload_timer >= UPLOAD_PERIOD_MS)
+				{
+						upload_timer = 0;
+					
+						MQTT_Upload(
+								soil,
+								dht11_data.temp_int,
+								dht11_data.humi_int,
+								light,
+								alarm_flag
+						);
+				}
+    }
+}
