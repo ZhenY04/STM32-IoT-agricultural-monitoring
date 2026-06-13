@@ -1,5 +1,9 @@
 # STM32 Intelligent Agricultural Monitoring System
 
+## Background
+
+This repository contains my undergraduate graduation project and its subsequent improvements.
+
 ## Introduction
 
 An intelligent agricultural monitoring system based on STM32F103C8T6, capable of environmental sensing, automatic irrigation control, and cloud data upload through MQTT.
