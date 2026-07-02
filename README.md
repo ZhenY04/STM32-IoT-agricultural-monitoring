@@ -19,7 +19,7 @@ An intelligent agricultural monitoring system based on STM32F103C8T6, capable of
 
 ### Automatic Irrigation
 
-- Water pump control via relay/MOSFET
+- Water pump control via MOS/relay
 - Automatic irrigation based on soil moisture threshold
 
 ### IoT Communication
@@ -34,17 +34,30 @@ An intelligent agricultural monitoring system based on STM32F103C8T6, capable of
 - Capacitive soil moisture sensor
 - DHT11
 - BH1750
-- Relay/N-MOSFET
+- N-MOSFET
 - Water pump
 - ESP8266 (ESP-01S)
 - OLED
-- Switch
+- Buttons
+
+### Hardware Prototype
+
+![Hardware Protoytpe](Docs/hardware_prototype.jpg)
+
+### Schematic
+
+![Schematic](Docs/Schematic.png)
+
+### PCB
+
+![PCB_top](Docs/PCB_top.png)
+![PCB_bottom](Docs/PCB_bottom.png)
 
 ## Software
 
 - C
 - Keil5
-- VS Code
+- VS Code + Embedded IDE extension
 - STM32 Standard Peripheral Library
 
 ## Project Structure
@@ -56,9 +69,13 @@ An intelligent agricultural monitoring system based on STM32F103C8T6, capable of
 - System/
 - User/
 
-## Hardware Prototype
+## System Structure
 
-![Hardware Protoytpe](Docs/hardware_prototype.jpg)
+![System Structure](Docs/System_Structure.png)
+
+## Could Data Upload Example
+
+![Cloud_Light_Curve](Docs/Cloud_Light_Curve.png)
 
 ## License
 

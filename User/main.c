@@ -15,7 +15,7 @@
 
 #include "Relay.h"
 
-#define LOOP_PERIOD_MS 50     // 屏幕刷新周期
+#define LOOP_PERIOD_MS   50   // 屏幕刷新周期
 #define UPLOAD_PERIOD_MS 200  // 四分之一MQTT上传云平台周期
 
 typedef enum
