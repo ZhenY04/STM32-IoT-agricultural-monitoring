@@ -15,8 +15,9 @@
 
 #include "Relay.h"
 
-#define LOOP_PERIOD_MS   50   // 屏幕刷新周期
-#define UPLOAD_PERIOD_MS 200  // 四分之一MQTT上传云平台周期
+#define LOOP_PERIOD_MS   50        // 屏幕刷新周期
+#define UPLOAD_PERIOD_MS 200       // 四分之一MQTT上传云平台周期
+#define SOIL_HYSTERESIS_PERCENT 5  // 土壤湿度阈值滞后量，防止继电器频繁开关
 
 typedef enum
 {
@@ -32,8 +33,8 @@ static uint32_t upload_timer = 0;
 
 static DHT11_Data_TypeDef dht11_data;
 
-uint8_t soil_threshold     = 30;  // 默认阈值
-static  uint8_t alarm_flag = 0;   // 土壤湿度告警状态变量
+uint8_t soil_threshold          = 30;  // 默认阈值
+static  uint8_t soil_alarm_flag = 0;   // 土壤湿度告警状态变量
 
 int main(void)
 {
@@ -83,6 +84,12 @@ int main(void)
             }
         }
 
+        uint8_t soil_pump_off_threshold = soil_threshold + SOIL_HYSTERESIS_PERCENT;
+        if(soil_pump_off_threshold > 100)
+        {
+            soil_pump_off_threshold = 100;
+        }
+
         // 读取传感器
         uint8_t  soil  = Soil_Moisture_Percent();
         uint16_t light = BH1750_ReadLux();
@@ -96,15 +103,28 @@ int main(void)
             }
         }
 				
-        // 控制MOS或继电器（高电平触发模式下）开断
-        if(soil < soil_threshold)
+        if(soil_alarm_flag)
         {
-            alarm_flag = 1;
+            if(soil >= soil_pump_off_threshold)
+            {
+                soil_alarm_flag = 0;
+            }
+        }
+        else
+        {
+            if(soil < soil_threshold)
+            {
+                soil_alarm_flag = 1;
+            }
+        }
+
+        // 控制MOS或继电器（高电平触发模式下）开断
+        if(soil_alarm_flag)
+        {
             GPIO_SetBits(RELAY_PORT, RELAY_PIN);  // 导通
         }
         else
         {
-            alarm_flag = 0;
             GPIO_ResetBits(RELAY_PORT, RELAY_PIN);  // 断开
         }
 
@@ -151,7 +171,7 @@ int main(void)
                 dht11_data.temp_int,
                 dht11_data.humi_int,
                 light,
-                alarm_flag
+                soil_alarm_flag
             );
         }
     }
