@@ -15,9 +15,10 @@
 
 #include "Relay.h"
 
-#define LOOP_PERIOD_MS   50        // 屏幕刷新周期
-#define UPLOAD_PERIOD_MS 200       // 四分之一MQTT上传云平台周期
-#define SOIL_HYSTERESIS_PERCENT 5  // 土壤湿度阈值滞后量，防止继电器频繁开关
+#define MQTT_UPLOAD_PERIOD_TICKS 500  // 10ms * 500 = 5s
+#define DHT11_SAMPLE_PERIOD_TICKS 100  // 10ms * 100 = 1s
+
+#define SOIL_HYSTERESIS_PERCENT 5  // Prevent frequent relay switching
 
 typedef enum
 {
@@ -28,13 +29,13 @@ typedef enum
 
 SystemMode CurrentMode = MODE_SOIL;
 
-static uint32_t dht11_timer  = 0;
-static uint32_t upload_timer = 0;
+static uint32_t dht11_sample_tick = 0;
+static uint32_t mqtt_upload_tick = 0;
 
 static DHT11_Data_TypeDef dht11_data;
 
-uint8_t soil_threshold          = 30;  // 默认阈值
-static  uint8_t soil_alarm_flag = 0;   // 土壤湿度告警状态变量
+uint8_t soil_threshold          = 30;  // Default threshold
+static  uint8_t soil_alarm_flag = 0;   // Soil moisture alarm flag
 
 int main(void)
 {
@@ -50,6 +51,8 @@ int main(void)
 
     Serial_Init();
 	MQTT_Init();
+	dht11_sample_tick = Timer_GetTick();
+	mqtt_upload_tick = Timer_GetTick();
 	
 	Relay_Init();
 
@@ -90,17 +93,15 @@ int main(void)
             soil_pump_off_threshold = 100;
         }
 
-        // 读取传感器
+        // Sensor reading
         uint8_t  soil  = Soil_Moisture_Percent();
         uint16_t light = BH1750_ReadLux();
 
-        dht11_timer += LOOP_PERIOD_MS;
-        if(dht11_timer >= 1000)
+        // DHT11 driven by TIM2 to keep at least 1s between samplings
+        if((uint32_t)(Timer_GetTick() - dht11_sample_tick) >= DHT11_SAMPLE_PERIOD_TICKS)
         {
-            if(DHT11_Read_Data(&dht11_data) == 0)
-            {
-                dht11_timer = 0;
-            }
+            dht11_sample_tick = Timer_GetTick();
+            DHT11_Read_Data(&dht11_data);
         }
 				
         if(soil_alarm_flag)
@@ -118,17 +119,17 @@ int main(void)
             }
         }
 
-        // 控制MOS或继电器（高电平触发模式下）开断
+        // Relay control
         if(soil_alarm_flag)
         {
-            GPIO_SetBits(RELAY_PORT, RELAY_PIN);  // 导通
+            GPIO_SetBits(RELAY_PORT, RELAY_PIN);
         }
         else
         {
-            GPIO_ResetBits(RELAY_PORT, RELAY_PIN);  // 断开
+            GPIO_ResetBits(RELAY_PORT, RELAY_PIN);
         }
 
-        // OLED根据模式显示
+        // OLED display
         switch(CurrentMode)
         {
             case MODE_SOIL: 
@@ -158,14 +159,11 @@ int main(void)
                 break;
         }
 				
-        // MQTT上传
-        upload_timer += LOOP_PERIOD_MS;
-        
-        // 理论上每UPLOAD_PERIOD_MS上传一次，但实际一个循环约为250ms而非50ms
-        // 因此，实际上每5*UPLOAD_PERIOD_MS上传一次
-        if(upload_timer >= UPLOAD_PERIOD_MS)
+        // MQTT upload based on TIM2 interrupt
+        // Upload period: TIM2 interrupt period * MQTT_UPLOAD_PERIOD_TICKS = 10ms * 500 = 5s
+        if((uint32_t)(Timer_GetTick() - mqtt_upload_tick) >= MQTT_UPLOAD_PERIOD_TICKS)
         {
-            upload_timer = 0;
+            mqtt_upload_tick += MQTT_UPLOAD_PERIOD_TICKS;
             MQTT_Upload(
                 soil,
                 dht11_data.temp_int,

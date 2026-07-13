@@ -2,6 +2,8 @@
 #include "Timer.h"
 #include "Key.h"
 
+static volatile uint32_t timer_tick_count = 0;
+
 void Timer_Init(void)
 {
 	RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM2, ENABLE);
@@ -10,7 +12,7 @@ void Timer_Init(void)
 	TIM_TimeBaseInitStructure.TIM_ClockDivision     = TIM_CKD_DIV1;
 	TIM_TimeBaseInitStructure.TIM_CounterMode       = TIM_CounterMode_Up;
 	TIM_TimeBaseInitStructure.TIM_Period            = 1000 - 1;
-	TIM_TimeBaseInitStructure.TIM_Prescaler         = 720 - 1;  // 100Hz, 10ms
+	TIM_TimeBaseInitStructure.TIM_Prescaler         = 720 - 1;  // 72MHz / 1000 / 720 = 100Hz (10ms)
 	TIM_TimeBaseInitStructure.TIM_RepetitionCounter = 0;
 	TIM_TimeBaseInit(TIM2, &TIM_TimeBaseInitStructure);
 	
@@ -35,5 +37,11 @@ void TIM2_IRQHandler(void)
 	{
 		TIM_ClearITPendingBit(TIM2, TIM_IT_Update);
 		Key_Tick();
+		timer_tick_count++;
 	}
+}
+
+uint32_t Timer_GetTick(void)
+{
+	return timer_tick_count;
 }

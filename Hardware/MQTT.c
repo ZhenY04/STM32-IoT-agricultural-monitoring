@@ -10,13 +10,10 @@
 
 extern char Serial_RxBuffer[];
 extern volatile uint16_t Serial_RxIndex;
-extern uint8_t soil_threshold;   // ����main��ı���
+extern uint8_t soil_threshold;
 
 static int msg_id = 0;
 
-/**
- * @brief  MQTT��ʼ����ĿǰΪ����ʽ���������Ż�Ϊ�����жϡ�״̬���ķ�ʽ�������١��ȶ�
- */
 void MQTT_Init(void)
 {
 	Serial_SendString("AT+RST\r\n");
@@ -25,27 +22,39 @@ void MQTT_Init(void)
 	Serial_SendString("AT+CWMODE=1\r\n");
 	Delay_ms(1000);
 
-    Serial_SendString("AT+CWJAP=\"" WIFI_SSID "\",\"" WIFI_PASSWORD "\"\r\n");
+    Serial_SendString(
+    "AT+CWJAP=\"" 
+    WIFI_SSID 
+    "\",\"" 
+    WIFI_PASSWORD 
+    "\"\r\n");
     Delay_ms(6000);
 
-    /* ===== ����MQTT���� ===== */
-    Serial_SendString("AT+MQTTUSERCFG=0,1,\"" MQTT_CLIENT_ID "\",\"" MQTT_USERNAME "\"," "\"" MQTT_PASSWORD "\"" ",0,0,\"\"\r\n");
+    Serial_SendString(
+    "AT+MQTTUSERCFG=0,1,\"" 
+    MQTT_CLIENT_ID 
+    "\",\"" 
+    MQTT_USERNAME 
+    "\"," "\"" 
+    MQTT_PASSWORD 
+    "\"" ",0,0,\"\"\r\n");
     Delay_ms(2000);
 
-    /* ===== ����MQTT������ ===== */
-    Serial_SendString("AT+MQTTCONN=0,\"" MQTT_BROKER "\",\" MQTT_PORT \",1\r\n");
+    Serial_SendString(
+    "AT+MQTTCONN=0,\""
+    MQTT_BROKER
+    "\","
+    MQTT_PORT
+    ",1\r\n");
     Delay_ms(3000);
 }
 
-/**
- * @brief  MQTT�ϴ�
- */
 void MQTT_Upload(int soil, int temp, int humi, int light, int alarm_flag)
 {
     char json[200];
     char cmd[256];
 
-    msg_id++;    //��ϢID�����������
+    msg_id++;
 
     /* ===== Build JSON ===== */
     sprintf(json,
