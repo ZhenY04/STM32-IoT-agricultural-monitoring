@@ -57,7 +57,7 @@ void MQTT_Upload(int soil, int temp, int humi, int light, int alarm_flag)
     msg_id++;
 
     /* ===== Build JSON ===== */
-    sprintf(json,
+    snprintf(json, sizeof(json),
         "{\"id\":\"%d\",\"version\":\"1.0\",\"params\":{"
         "\"Soil\":{\"value\":%d},"
         "\"Temp\":{\"value\":%d},"
@@ -70,7 +70,7 @@ void MQTT_Upload(int soil, int temp, int humi, int light, int alarm_flag)
     int len = strlen(json);
 
     /* ===== AT cmd ===== */
-    sprintf(cmd,
+    snprintf(cmd, sizeof(cmd),
         "AT+MQTTPUBRAW=0,\"%s\",%d,0,0\r\n",
         MQTT_TOPIC,
         len);

@@ -25,7 +25,8 @@ typedef enum
 {
     MODE_SOIL = 0,
     MODE_BH1750,
-    MODE_DHT11
+    MODE_DHT11,
+    MODE_COUNT
 } SystemMode;
 
 SystemMode CurrentMode = MODE_SOIL;
@@ -36,8 +37,97 @@ static uint32_t display_refresh_tick = 0;
 
 static DHT11_Data_TypeDef dht11_data;
 
+typedef struct
+{
+    SystemMode mode;
+    uint8_t soil;
+    uint8_t soil_threshold;
+    uint16_t light;
+    uint8_t temperature;
+    uint8_t humidity;
+} DisplayState;
+
+static DisplayState display_state = {MODE_COUNT, 0, 0, 0, 0, 0};
+
 uint8_t soil_threshold          = 30;  // Default threshold
 static  uint8_t soil_alarm_flag = 0;   // Soil moisture alarm flag
+
+static void DisplayStaticContent(SystemMode mode)
+{
+    switch(mode)
+    {
+        case MODE_SOIL:
+            OLED_ShowString(1, 1, "Soil:");
+            OLED_ShowChar(2, 4, '%');
+            OLED_ShowString(3, 1, "Threshold:");
+            OLED_ShowChar(4, 4, '%');
+            break;
+
+        case MODE_BH1750:
+            OLED_ShowString(1, 1, "Light:");
+            OLED_ShowString(2, 7, "lux");
+            break;
+
+        case MODE_DHT11:
+            OLED_ShowString(1, 1, "Temp:");
+            OLED_ShowChar(1, 8, 'C');
+            OLED_ShowString(2, 1, "Humi:");
+            OLED_ShowChar(2, 8, '%');
+            break;
+
+        default:
+            break;
+    }
+}
+
+static uint8_t DisplayDataChanged(SystemMode mode, uint8_t soil, uint16_t light)
+{
+    switch(mode)
+    {
+        case MODE_SOIL:
+            return (soil != display_state.soil) ||
+                   (soil_threshold != display_state.soil_threshold);
+
+        case MODE_BH1750:
+            return light != display_state.light;
+
+        case MODE_DHT11:
+            return (dht11_data.temp_int != display_state.temperature) ||
+                   (dht11_data.humi_int != display_state.humidity);
+
+        default:
+            return 0;
+    }
+}
+
+static void DisplayData(SystemMode mode, uint8_t soil, uint16_t light)
+{
+    switch(mode)
+    {
+        case MODE_SOIL:
+            OLED_ShowNum(2, 1, soil, 3);
+            OLED_ShowNum(4, 1, soil_threshold, 3);
+            break;
+
+        case MODE_BH1750:
+            OLED_ShowNum(2, 1, light, 5);
+            break;
+
+        case MODE_DHT11:
+            OLED_ShowNum(1, 6, dht11_data.temp_int, 2);
+            OLED_ShowNum(2, 6, dht11_data.humi_int, 2);
+            break;
+
+        default:
+            break;
+    }
+
+    display_state.soil = soil;
+    display_state.soil_threshold = soil_threshold;
+    display_state.light = light;
+    display_state.temperature = dht11_data.temp_int;
+    display_state.humidity = dht11_data.humi_int;
+}
 
 int main(void)
 {
@@ -70,8 +160,6 @@ int main(void)
             {
                 CurrentMode = MODE_SOIL;
             }
-
-            OLED_Clear();
         }
 
         if(Key_GetEvent(KEY_PLUS))
@@ -132,37 +220,20 @@ int main(void)
             GPIO_ResetBits(RELAY_PORT, RELAY_PIN);
         }
 
-        // OLED display refresh is limited to 50ms intervals.
+        // OLED display updates are limited to 50ms intervals.
         if((uint32_t)(Timer_GetTick() - display_refresh_tick) >= DISPLAY_REFRESH_PERIOD_TICKS)
         {
             display_refresh_tick = Timer_GetTick();
-            switch(CurrentMode)
+            if(display_state.mode != CurrentMode)
             {
-                case MODE_SOIL:
-                    OLED_ShowString(1,1,"Soil:");
-                    OLED_ShowNum(2,1,soil,3);
-                    OLED_ShowChar(2,4,'%');
-
-                    OLED_ShowString(3,1,"Threshold:");
-                    OLED_ShowNum(4,1,soil_threshold,3);
-                    OLED_ShowChar(4,4,'%');
-                    break;
-
-                case MODE_BH1750:
-                    OLED_ShowString(1,1,"Light:");
-                    OLED_ShowNum(2,1,light,5);
-                    OLED_ShowString(2,7,"lux");
-                    break;
-
-                case MODE_DHT11:
-                    OLED_ShowString(1,1,"Temp:");
-                    OLED_ShowNum(1,6,dht11_data.temp_int,2);
-                    OLED_ShowChar(1,8,'C');
-
-                    OLED_ShowString(2,1,"Humi:");
-                    OLED_ShowNum(2,6,dht11_data.humi_int,2);
-                    OLED_ShowChar(2,8,'%');
-                    break;
+                OLED_Clear();
+                DisplayStaticContent(CurrentMode);
+                display_state.mode = CurrentMode;
+                DisplayData(CurrentMode, soil, light);
+            }
+            else if(DisplayDataChanged(CurrentMode, soil, light))
+            {
+                DisplayData(CurrentMode, soil, light);
             }
         }
 				
