@@ -17,6 +17,7 @@
 
 #define MQTT_UPLOAD_PERIOD_TICKS 500  // 10ms * 500 = 5s
 #define DHT11_SAMPLE_PERIOD_TICKS 100  // 10ms * 100 = 1s
+#define DISPLAY_REFRESH_PERIOD_TICKS 5  // 10ms * 5 = 50ms
 
 #define SOIL_HYSTERESIS_PERCENT 5  // Prevent frequent relay switching
 
@@ -31,6 +32,7 @@ SystemMode CurrentMode = MODE_SOIL;
 
 static uint32_t dht11_sample_tick = 0;
 static uint32_t mqtt_upload_tick = 0;
+static uint32_t display_refresh_tick = 0;
 
 static DHT11_Data_TypeDef dht11_data;
 
@@ -53,6 +55,7 @@ int main(void)
 	MQTT_Init();
 	dht11_sample_tick = Timer_GetTick();
 	mqtt_upload_tick = Timer_GetTick();
+	display_refresh_tick = Timer_GetTick();
 	
 	Relay_Init();
 
@@ -129,34 +132,38 @@ int main(void)
             GPIO_ResetBits(RELAY_PORT, RELAY_PIN);
         }
 
-        // OLED display
-        switch(CurrentMode)
+        // OLED display refresh is limited to 50ms intervals.
+        if((uint32_t)(Timer_GetTick() - display_refresh_tick) >= DISPLAY_REFRESH_PERIOD_TICKS)
         {
-            case MODE_SOIL: 
-                OLED_ShowString(1,1,"Soil:");
-                OLED_ShowNum(2,1,soil,3);
-                OLED_ShowChar(2,4,'%');
-						
-				OLED_ShowString(3,1,"Threshold:");
-				OLED_ShowNum(4,1,soil_threshold,3);
-				OLED_ShowChar(4,4,'%');
-                break;
+            display_refresh_tick = Timer_GetTick();
+            switch(CurrentMode)
+            {
+                case MODE_SOIL:
+                    OLED_ShowString(1,1,"Soil:");
+                    OLED_ShowNum(2,1,soil,3);
+                    OLED_ShowChar(2,4,'%');
 
-            case MODE_BH1750: 
-                OLED_ShowString(1,1,"Light:");
-                OLED_ShowNum(2,1,light,5);
-                OLED_ShowString(2,7,"lux");
-                break;
+                    OLED_ShowString(3,1,"Threshold:");
+                    OLED_ShowNum(4,1,soil_threshold,3);
+                    OLED_ShowChar(4,4,'%');
+                    break;
 
-            case MODE_DHT11: 
-                OLED_ShowString(1,1,"Temp:");
-                OLED_ShowNum(1,6,dht11_data.temp_int,2);
-                OLED_ShowChar(1,8,'C');
+                case MODE_BH1750:
+                    OLED_ShowString(1,1,"Light:");
+                    OLED_ShowNum(2,1,light,5);
+                    OLED_ShowString(2,7,"lux");
+                    break;
 
-                OLED_ShowString(2,1,"Humi:");
-                OLED_ShowNum(2,6,dht11_data.humi_int,2);
-                OLED_ShowChar(2,8,'%');
-                break;
+                case MODE_DHT11:
+                    OLED_ShowString(1,1,"Temp:");
+                    OLED_ShowNum(1,6,dht11_data.temp_int,2);
+                    OLED_ShowChar(1,8,'C');
+
+                    OLED_ShowString(2,1,"Humi:");
+                    OLED_ShowNum(2,6,dht11_data.humi_int,2);
+                    OLED_ShowChar(2,8,'%');
+                    break;
+            }
         }
 				
         // MQTT upload based on TIM2 interrupt
